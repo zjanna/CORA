@@ -1,0 +1,33 @@
+Package: CORA
+Title: COrrelation-Redundancy-Aware FDR Adjustment with Genomic Applications
+Version: 1.0.0
+Authors@R:
+    person("Joanna", "Zyprych-Walczak",
+           email = "joanna.zyprych-walczak@up.poznan.pl",
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-9465-3851"))
+Author: Joanna Zyprych-Walczak [aut, cre]
+Maintainer: Joanna Zyprych-Walczak <joanna.zyprych-walczak@up.poznan.pl>
+Description: Implements the CORA (COrrelation-Redundancy-Aware) method for
+    multiple testing correction that incorporates pairwise correlations
+    into the Benjamini-Hochberg FDR control procedure. CORA penalizes
+    redundant discoveries by adjusting the rejection threshold based on the
+    accumulated absolute correlation of each hypothesis with previously
+    rejected hypotheses. The package also provides standalone implementations
+    of BH, BY, ABH, and TSBH procedures for comparison. While designed and
+    benchmarked on high-throughput genomic data (microarray and RNA-seq),
+    CORA is applicable to any multiple testing problem where a correlation
+    matrix among test statistics is available.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends: R (>= 4.0.0)
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+URL: https://github.com/zjanna/CORA
+BugReports: https://github.com/zjanna/CORA/issues
+Config/roxygen2/version: 8.0.0

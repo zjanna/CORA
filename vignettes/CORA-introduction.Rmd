@@ -1,0 +1,397 @@
+---
+title: "Getting Started with CORA"
+subtitle: "COrrelation-Redundancy-Aware FDR Adjustment with Genomic Applications"
+author: "Joanna Zyprych-Walczak"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Getting Started with CORA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.width = 7,
+  fig.height = 4
+)
+```
+
+# Introduction
+
+The **CORA** package implements the COrrelation-Redundancy-Aware FDR
+adjustment for high-throughput genomic studies. The standard
+Benjamini–Hochberg (BH) procedure treats all hypotheses as equally
+informative regardless of the correlation structure among test statistics.
+In practice, genes within the same biological pathways exhibit strong
+co-expression, and BH may therefore report clusters of highly correlated
+genes as separate discoveries — inflating the DEG list without
+proportionally increasing biological information content.
+
+CORA modifies the BH rejection threshold for gene at rank $i$ by
+subtracting the accumulated absolute correlation $c_i$ with all
+previously ranked genes:
+
+$$\tilde{p}_{(i)}^{\text{CORA}} = \min_{j \geq i}
+  \left\{ \frac{m}{j - c_j} \cdot p_{(j)} \right\},
+\quad c_i = \sum_{k=1}^{i-1} |r_{\sigma(k),\, \sigma(i)}|$$
+
+where $\sigma$ is the ranking permutation (ascending p-value order) and
+$r_{ij}$ is the absolute Pearson correlation between genes $i$ and $j$.
+
+**Key properties:**
+
+- **Under independence** ($c_i = 0$ for all $i$): CORA $\equiv$ BH
+- **Under positive correlation**: CORA is more conservative than BH
+- **Subset property**: $\mathcal{R}_\text{CORA} \subseteq \mathcal{R}_\text{BH}$
+  — CORA never rejects a gene that BH does not reject
+- **Empirically validated**: $\text{FDR}_\text{CORA} \leq \alpha$ in all
+  tested scenarios (see Zyprych-Walczak, 2026)
+
+# Installation
+
+```{r install, eval=FALSE}
+# Install CORA from GitHub
+if (!requireNamespace("devtools", quietly = TRUE))
+    install.packages("devtools")
+devtools::install_github("zjanna/CORA")
+```
+
+# Quick Start
+
+```{r quickstart}
+library(CORA)
+
+set.seed(42)
+m   <- 500                    # number of genes
+# 50 true DEGs (small p-values) + 450 nulls
+rawp <- c(runif(50, 0, 0.005), runif(450, 0, 1))
+
+# Block-correlated structure: first 50 genes form a co-expression module
+cor_mat <- diag(m)
+cor_mat[1:50, 1:50] <- 0.6
+diag(cor_mat) <- 1
+
+# Compare all methods
+cora_compare(rawp, cor_mat, alpha = 0.05)
+```
+
+Under positive block correlation, CORA rejects fewer genes than BH but
+more than BY, while the subset property
+$\mathcal{R}_\text{CORA} \subseteq \mathcal{R}_\text{BH}$ is always
+maintained.
+
+# Core Functions
+
+## `adjust_CORA()` — CORA-adjusted p-values
+
+The primary function takes a vector of raw p-values and the absolute
+correlation matrix and returns CORA-adjusted p-values.
+
+```{r adjust_cora}
+adj_bh   <- adjust_BH(rawp)
+adj_cora <- adjust_CORA(rawp, cor_mat)
+
+cat("BH   rejections:", sum(adj_bh   < 0.05), "\n")
+cat("CORA rejections:", sum(adj_cora < 0.05), "\n")
+cat("Reduction:      ", round((1 - sum(adj_cora < 0.05) /
+                               sum(adj_bh < 0.05)) * 100, 1), "%\n")
+```
+
+CORA-adjusted p-values are always $\geq$ BH-adjusted p-values, confirming
+the subset property:
+
+```{r subset_property}
+all(adj_cora >= adj_bh - 1e-10)   # TRUE: CORA ⊆ BH
+```
+
+## `cora_compare()` — Side-by-side comparison
+
+Applies BH, BY, ABH, TSBH, and CORA to the same p-values and returns
+a summary table with the number of rejections and the percentage relative
+to BH:
+
+```{r compare}
+cora_compare(rawp, cor_mat)
+```
+
+If no correlation matrix is supplied, CORA is skipped and only the four
+standard BH-family methods are returned:
+
+```{r compare_no_cor}
+cora_compare(rawp)   # BH, BY, ABH, TSBH only
+```
+
+## `cora_summary()` — Detailed report
+
+Returns a list with:
+
+- `$comparison` — method comparison table
+- `$reduction` — % DEG reduction of CORA vs BH
+- `$top_genes` — raw and adjusted p-values for the top-ranked genes
+- `$overlap` — top-N overlap between CORA and BH gene lists
+
+```{r summary}
+# Named p-values for gene-level output
+names(rawp) <- paste0("gene", seq_along(rawp))
+
+res <- cora_summary(rawp, cor_mat, alpha = 0.05, top_n = 10)
+
+# Method comparison
+res$comparison
+
+# DEG reduction vs BH
+cat("DEG reduction:", res$reduction, "%\n")
+
+# Top 10 genes: raw p, BH-adjusted, CORA-adjusted, significance flags
+head(res$top_genes, 10)
+
+# Overlap between CORA and BH top-N lists
+res$overlap
+```
+
+The overlap table confirms that CORA and BH agree on the most strongly
+significant genes — CORA's effect is concentrated at the **margin** of
+the ranked list, where correlated borderline-significant genes accumulate.
+
+# Worked Example: RNA-seq–like Scenario
+
+This example mimics a typical RNA-seq analysis: a large dataset with
+pathway-structured co-expression, where CORA's effect is most pronounced.
+
+```{r rnaseq_example}
+set.seed(2024)
+m         <- 5000   # genes tested
+n_true    <- 400    # true DEGs
+n_path    <- 8      # number of co-expression pathways
+path_size <- 50     # DEGs per pathway
+
+# Simulate raw p-values
+rawp_rna <- c(
+  runif(n_true,   0, 0.003),  # true positives: small p-values
+  runif(m - n_true, 0, 1)     # nulls
+)
+names(rawp_rna) <- paste0("gene", seq_len(m))
+
+# Build block-diagonal correlation matrix (pathway structure)
+cor_rna <- diag(m)
+for (k in seq_len(n_path)) {
+  idx <- (k - 1) * path_size + seq_len(path_size)
+  cor_rna[idx, idx] <- 0.65   # within-pathway correlation
+}
+diag(cor_rna) <- 1
+
+# Run comparison
+result_rna <- cora_compare(rawp_rna, cor_rna)
+print(result_rna)
+```
+
+```{r rnaseq_plot, fig.cap="DEG counts by method under pathway-clustered correlation. CORA falls between BY (most conservative) and BH (most liberal). Dashed line: number of true DEGs."}
+cols <- c(BH = "steelblue", BY = "steelblue", ABH = "steelblue",
+          TSBH = "steelblue", CORA = "firebrick")
+
+barplot(
+  result_rna$n_rejected,
+  names.arg = result_rna$method,
+  col       = cols[result_rna$method],
+  main      = "DEG counts by method (RNA-seq-like scenario)",
+  ylab      = "Number of rejected hypotheses",
+  las       = 1,
+  ylim      = c(0, max(result_rna$n_rejected) * 1.15)
+)
+abline(h = n_true, lty = 2, col = "darkgreen", lwd = 2)
+legend("topright", legend = "True DEGs", lty = 2, col = "darkgreen",
+       lwd = 2, bty = "n")
+```
+
+```{r rnaseq_summary}
+res_rna <- cora_summary(rawp_rna, cor_rna, top_n = 20)
+cat("DEG reduction vs BH:", res_rna$reduction, "%\n\n")
+cat("Top-N overlap between CORA and BH:\n")
+print(res_rna$overlap)
+```
+
+CORA removes borderline-significant correlated genes while retaining
+the strongly significant core — the top-N overlap with BH remains high.
+
+# Using CORA with Real Genomic Data
+
+CORA requires two inputs: a vector of raw p-values and the corresponding
+absolute correlation matrix. Below are typical workflows for RNA-seq and
+microarray data.
+
+## RNA-seq (DESeq2)
+
+```{r rnaseq_real, eval=FALSE}
+library(DESeq2)
+library(CORA)
+
+# 1. Run DESeq2
+dds <- DESeqDataSet(se, design = ~condition)
+dds <- dds[rowSums(counts(dds) >= 10) >= 2, ]   # filter low counts
+dds <- DESeq(dds)
+
+# 2. Extract raw p-values (replace NA with 1 for independent filtering)
+res  <- results(dds)
+rawp <- res$pvalue
+rawp[is.na(rawp)] <- 1
+names(rawp) <- rownames(res)
+
+# 3. Build correlation matrix from VST-normalised expression
+vst_mat    <- assay(vst(dds, blind = FALSE))
+cor_matrix <- abs(cor(t(vst_mat)))
+
+# 4. Apply CORA
+adj_cora  <- adjust_CORA(rawp, cor_matrix)
+DEGs_CORA <- names(which(adj_cora < 0.05))
+cat("CORA DEGs:", length(DEGs_CORA), "\n")
+
+# 5. Full comparison with all BH-family methods
+cora_compare(rawp, cor_matrix)
+```
+
+## Microarray
+
+```{r microarray_real, eval=FALSE}
+library(CORA)
+
+# expression_matrix: genes x samples (already normalised, e.g. RMA)
+# labels: factor vector of class labels
+
+# 1. Compute p-values (two-sample t-tests)
+rawp <- apply(expression_matrix, 1, function(x) {
+  t.test(x[labels == levels(labels)[1]],
+         x[labels == levels(labels)[2]])$p.value
+})
+
+# 2. Build absolute correlation matrix
+cor_matrix <- abs(cor(t(expression_matrix)))
+
+# 3. Apply CORA and compare
+cora_compare(rawp, cor_matrix)
+```
+
+# When Does CORA Make a Difference?
+
+CORA's effect depends on two factors (Proposition 1 in the paper):
+
+1. **Number of true DEGs** — more rejections mean more $c_i$ accumulation
+2. **Correlation strength** — stronger within-pathway correlations mean
+   larger $c_i$ per gene
+
+```{r sensitivity, fig.cap="CORA DEG reduction relative to BH as a function of correlation strength (rho) and number of true DEGs. The effect is strongest when both factors are large simultaneously."}
+set.seed(99)
+m <- 1000
+
+grid <- expand.grid(
+  rho    = c(0.1, 0.3, 0.5, 0.7, 0.9),
+  n_true = c(50, 100, 200, 400)
+)
+
+grid$reduction <- mapply(function(rho, nt) {
+  rawp_g <- c(runif(nt, 0, 0.003), runif(m - nt, 0, 1))
+  cm <- diag(m)
+  cm[1:nt, 1:nt] <- rho
+  diag(cm) <- 1
+  n_bh   <- sum(adjust_BH(rawp_g)          < 0.05)
+  n_cora <- sum(adjust_CORA(rawp_g, cm) < 0.05)
+  if (n_bh == 0) 0 else round((1 - n_cora / n_bh) * 100, 1)
+}, grid$rho, grid$n_true)
+
+# Plot
+cols_n <- c("50"  = "#d4e6f1",
+            "100" = "#85c1e9",
+            "200" = "#2e86c1",
+            "400" = "#1a5276")
+
+plot(NULL, xlim = c(0, 1), ylim = c(0, 60),
+     xlab = expression(rho ~ "(within-pathway correlation)"),
+     ylab = "DEG reduction vs BH (%)",
+     main = "CORA effect: correlation strength × number of DEGs")
+
+for (nt in c(50, 100, 200, 400)) {
+  sub <- grid[grid$n_true == nt, ]
+  lines(sub$rho, sub$reduction, col = cols_n[as.character(nt)],
+        lwd = 2, type = "b", pch = 16)
+}
+legend("topleft",
+       legend = paste0("n_true = ", c(50, 100, 200, 400)),
+       col    = cols_n,
+       lwd = 2, pch = 16, bty = "n")
+```
+
+**Practical implication**: CORA has the largest impact on RNA-seq datasets
+with many correlated DEGs. In the paper's benchmarks, CORA removed 17–23%
+of BH discoveries on RNA-seq (e.g., 617 genes on airway) and only 1–14% on
+microarrays (e.g., 5 genes on Lung), consistent with RNA-seq yielding more
+DEGs with stronger within-pathway correlations.
+
+# Interpreting CORA Results
+
+## Which genes does CORA remove?
+
+CORA removes genes that are (a) near the BH significance boundary and
+(b) highly correlated with more strongly significant genes. These genes
+carry **redundant biological information** — they are co-expressed with
+already-discovered genes and therefore contribute less marginal evidence
+for biological signal.
+
+```{r interpretation}
+set.seed(7)
+m_ex  <- 300
+n_deg <- 60
+
+rawp_ex <- c(runif(n_deg, 0, 0.004), runif(m_ex - n_deg, 0, 1))
+names(rawp_ex) <- paste0("gene", seq_len(m_ex))
+
+cm_ex <- diag(m_ex)
+cm_ex[1:n_deg, 1:n_deg] <- 0.7
+diag(cm_ex) <- 1
+
+adj_bh_ex   <- adjust_BH(rawp_ex)
+adj_cora_ex <- adjust_CORA(rawp_ex, cm_ex)
+
+# Genes removed by CORA = in BH but not in CORA
+removed <- which(adj_bh_ex < 0.05 & adj_cora_ex >= 0.05)
+kept    <- which(adj_cora_ex < 0.05)
+
+cat("BH rejections:   ", sum(adj_bh_ex   < 0.05), "\n")
+cat("CORA rejections: ", sum(adj_cora_ex < 0.05), "\n")
+cat("Removed by CORA: ", length(removed), "\n\n")
+
+cat("Median raw p-value — removed genes:", round(median(rawp_ex[removed]), 4), "\n")
+cat("Median raw p-value — kept genes:   ", round(median(rawp_ex[kept]),    4), "\n")
+```
+
+Removed genes have higher p-values (closer to the BH significance
+boundary) compared to CORA-accepted genes — confirming that CORA acts
+at the **margin of significance**, not on the strongly significant core.
+
+## Top-N overlap with BH
+
+Because CORA only removes marginal genes, it agrees with BH almost
+completely on the most significant genes:
+
+```{r overlap_interpretation}
+res_ex <- cora_summary(rawp_ex, cm_ex, top_n = 20)
+cat("Top-N overlap between CORA and BH:\n")
+print(res_ex$overlap)
+```
+
+This means that standard workflows focusing on the top 50–100 hits by
+p-value are essentially unaffected by CORA. The method is most valuable
+when analysing the **entire DEG list** (e.g., for pathway enrichment
+analysis) or when selecting a fixed-size biomarker panel where redundant
+genes should be excluded.
+
+# Session Information
+
+```{r session}
+sessionInfo()
+```
