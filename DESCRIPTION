@@ -20,6 +20,7 @@ Description: Implements the CORA (COrrelation-Redundancy-Aware) method for
     matrix among test statistics is available.
 License: GPL (>= 3)
 Encoding: UTF-8
+LazyData: true
 Roxygen: list(markdown = TRUE)
 Depends: R (>= 4.0.0)
 Suggests:

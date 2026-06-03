@@ -1,0 +1,40 @@
+#' Welsh et al. (2001) Ovarian Cancer Microarray Dataset
+#'
+#' Gene expression data for ovarian tissue samples from
+#' Welsh et al. (2001), used as one of the microarray benchmark
+#' datasets in the CORA paper.
+#'
+#' The dataset contains expression levels for 7129 genes
+#' across 36 ovarian tissue samples belonging to 3 subtype
+#' classes (12 samples per class). Loaded together with the
+#' \code{welsh2001_ovarian} call, the data are exposed as two
+#' separate objects in the user's workspace:
+#'
+#' \describe{
+#'   \item{\code{os_raw}}{Numeric matrix of dimension \eqn{7129
+#'         \times 36}{7129 x 36} containing raw (untransformed)
+#'         expression values. Columns are labelled
+#'         \code{TUMOR1}, ..., \code{TUMOR36}.}
+#'   \item{\code{L.ova}}{Integer vector of length 36 indicating
+#'         the subtype class (coded \code{0}, \code{1},
+#'         \code{2}) of each sample. The three classes contain
+#'         12 samples each.}
+#' }
+#'
+#' @docType data
+#' @keywords datasets
+#' @name welsh2001_ovarian
+#' @aliases L.ova os_raw
+#' @usage data(welsh2001_ovarian)
+#'
+#' @source Welsh JB, Zarrinkar PP, Sapinoso LM, et al. Analysis
+#'   of gene expression profiles in normal and neoplastic
+#'   ovarian tissue samples identifies candidate molecular
+#'   markers of epithelial ovarian cancer. Proc Natl Acad Sci
+#'   USA. 2001;98:1176-1181.
+#'
+#' @examples
+#' data(welsh2001_ovarian)
+#' dim(os_raw)
+#' table(L.ova)
+NULL

@@ -54,7 +54,7 @@ $$c_i = \sum_{k=1}^{i-1} |r_{\sigma(k), \sigma(i)}|$$
 the sum of absolute correlations with all previously ranked hypotheses.
 The adjusted p-value becomes:
 
-$$\tilde{p}_{(i)}^{\text{CORA}} = \min_{j \geq i} \left\{\frac{m}{j - c_j} \cdot p_{(j)}\right\}$$
+$$\tilde{p}_{(i)}^{\text{CORA}} = \min_{j \geq i} \left\lbrace \frac{m}{j - c_j} \cdot p_{(j)} \right\rbrace$$
 
 **Key properties:**
 - When correlations are zero: CORA = BH (identical results)
