@@ -35,13 +35,13 @@ cora_compare <- function(rawp, cor_matrix = NULL, alpha = 0.05) {
     methods$CORA <- adjust_CORA(rawp, cor_matrix)
   }
 
-  n_BH <- sum(methods$BH < alpha)
+  n_BH <- sum(methods$BH <= alpha)
 
   result <- data.frame(
     method     = names(methods),
-    n_rejected = sapply(methods, function(adj) sum(adj < alpha)),
+    n_rejected = sapply(methods, function(adj) sum(adj <= alpha)),
     pct_of_BH  = sapply(methods, function(adj) {
-      if (n_BH > 0) round(sum(adj < alpha) / n_BH * 100, 1) else NA
+      if (n_BH > 0) round(sum(adj <= alpha) / n_BH * 100, 1) else NA
     }),
     stringsAsFactors = FALSE
   )
@@ -86,8 +86,8 @@ cora_summary <- function(rawp, cor_matrix, alpha = 0.05, top_n = 20) {
   adj_bh   <- adjust_BH(rawp)
   adj_cora <- adjust_CORA(rawp, cor_matrix)
 
-  n_bh   <- sum(adj_bh   < alpha)
-  n_cora <- sum(adj_cora < alpha)
+  n_bh   <- sum(adj_bh   <= alpha)
+  n_cora <- sum(adj_cora <= alpha)
 
   # Reduction
   reduction <- if (n_bh > 0) round((1 - n_cora / n_bh) * 100, 1) else 0
@@ -104,8 +104,8 @@ cora_summary <- function(rawp, cor_matrix, alpha = 0.05, top_n = 20) {
     raw_p     = rawp[top_idx],
     adj_BH    = adj_bh[top_idx],
     adj_CORA  = adj_cora[top_idx],
-    sig_BH    = adj_bh[top_idx]   < alpha,
-    sig_CORA  = adj_cora[top_idx] < alpha,
+    sig_BH    = adj_bh[top_idx]   <= alpha,
+    sig_CORA  = adj_cora[top_idx] <= alpha,
     stringsAsFactors = FALSE
   )
 

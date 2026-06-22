@@ -25,7 +25,7 @@
 #'
 #' @references
 #' Zyprych-Walczak J. CORA: a COrrelation-Redundancy-Aware FDR adjustment
-#' for genomic data. BMC Bioinformatics. (submitted).
+#' with genomic applications. BMC Bioinformatics. (submitted).
 #'
 #' Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical
 #' and powerful approach to multiple testing. J R Stat Soc B. 1995;57:289-300.
@@ -45,8 +45,8 @@
 #' adj_bh   <- adjust_BH(rawp)
 #' adj_cora <- adjust_CORA(rawp, cor_mat)
 #'
-#' cat("BH rejections:",   sum(adj_bh   < 0.05), "\n")
-#' cat("CORA rejections:", sum(adj_cora < 0.05), "\n")
+#' cat("BH rejections:",   sum(adj_bh   <= 0.05), "\n")
+#' cat("CORA rejections:", sum(adj_cora <= 0.05), "\n")
 #'
 #' @export
 adjust_CORA <- function(rawp, cor_matrix) {
@@ -61,6 +61,9 @@ adjust_CORA <- function(rawp, cor_matrix) {
   if (!is.matrix(cor_matrix)) stop("cor_matrix must be a matrix")
   if (nrow(cor_matrix) != m || ncol(cor_matrix) != m)
     stop("cor_matrix must be m x m where m = length(rawp)")
+  if (anyNA(cor_matrix)) stop("cor_matrix must not contain NA values")
+  if (any(abs(cor_matrix) > 1 + 1e-8))
+    stop("cor_matrix entries must be valid correlations in [-1, 1]")
 
   # Sort p-values
   index <- order(rawp)
@@ -76,7 +79,7 @@ adjust_CORA <- function(rawp, cor_matrix) {
                     na.rm = TRUE)
     } else {
       # Correlation coefficient: sum of |r| with all previously ranked genes
-      coeff <- sum(cor_matrix[index[1:(i - 1)], index[i]])
+      coeff <- sum(abs(cor_matrix[index[1:(i - 1)], index[i]]))
 
       if ((i - coeff) > 0) {
         tmp[i] <- min(tmp[i + 1],

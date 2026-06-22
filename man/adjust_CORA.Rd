@@ -48,13 +48,13 @@ diag(cor_mat) <- 1
 adj_bh   <- adjust_BH(rawp)
 adj_cora <- adjust_CORA(rawp, cor_mat)
 
-cat("BH rejections:",   sum(adj_bh   < 0.05), "\n")
-cat("CORA rejections:", sum(adj_cora < 0.05), "\n")
+cat("BH rejections:",   sum(adj_bh   <= 0.05), "\n")
+cat("CORA rejections:", sum(adj_cora <= 0.05), "\n")
 
 }
 \references{
 Zyprych-Walczak J. CORA: a COrrelation-Redundancy-Aware FDR adjustment
-for genomic data. BMC Bioinformatics. (submitted).
+with genomic applications. BMC Bioinformatics. (submitted).
 
 Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical
 and powerful approach to multiple testing. J R Stat Soc B. 1995;57:289-300.
