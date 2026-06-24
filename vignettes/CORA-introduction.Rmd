@@ -108,7 +108,7 @@ CORA-adjusted p-values are always $\geq$ BH-adjusted p-values, confirming
 the subset property:
 
 ```{r subset_property}
-all(adj_cora >= adj_bh - 1e-10)   # TRUE: CORA ⊆ BH
+all(adj_cora >= adj_bh - 1e-10)   # TRUE: CORA rejections are a subset of BH
 ```
 
 ## `cora_compare()` — Side-by-side comparison
