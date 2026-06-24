@@ -249,7 +249,7 @@ cor_matrix <- abs(cor(t(vst_mat)))
 
 # 4. Apply CORA
 adj_cora  <- adjust_CORA(rawp, cor_matrix)
-DEGs_CORA <- names(which(adj_cora < 0.05))
+DEGs_CORA <- names(which(adj_cora <= 0.05))
 cat("CORA DEGs:", length(DEGs_CORA), "\n")
 
 # 5. Full comparison with all BH-family methods
