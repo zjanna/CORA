@@ -98,10 +98,10 @@ correlation matrix and returns CORA-adjusted p-values.
 adj_bh   <- adjust_BH(rawp)
 adj_cora <- adjust_CORA(rawp, cor_mat)
 
-cat("BH   rejections:", sum(adj_bh   < 0.05), "\n")
-cat("CORA rejections:", sum(adj_cora < 0.05), "\n")
-cat("Reduction:      ", round((1 - sum(adj_cora < 0.05) /
-                               sum(adj_bh < 0.05)) * 100, 1), "%\n")
+cat("BH   rejections:", sum(adj_bh   <= 0.05), "\n")
+cat("CORA rejections:", sum(adj_cora <= 0.05), "\n")
+cat("Reduction:      ", round((1 - sum(adj_cora <= 0.05) /
+                               sum(adj_bh <= 0.05)) * 100, 1), "%\n")
 ```
 
 CORA-adjusted p-values are always $\geq$ BH-adjusted p-values, confirming
@@ -279,52 +279,11 @@ cora_compare(rawp, cor_matrix)
 
 # When Does CORA Make a Difference?
 
-CORA's effect depends on two factors (Proposition 1 in the paper):
+CORA's effect depends on two factors (Observation 2 in the paper):
 
 1. **Number of true DEGs** — more rejections mean more $c_i$ accumulation
 2. **Correlation strength** — stronger within-pathway correlations mean
    larger $c_i$ per gene
-
-```{r sensitivity, fig.cap="CORA DEG reduction relative to BH as a function of correlation strength (rho) and number of true DEGs. The effect is strongest when both factors are large simultaneously."}
-set.seed(99)
-m <- 1000
-
-grid <- expand.grid(
-  rho    = c(0.1, 0.3, 0.5, 0.7, 0.9),
-  n_true = c(50, 100, 200, 400)
-)
-
-grid$reduction <- mapply(function(rho, nt) {
-  rawp_g <- c(runif(nt, 0, 0.003), runif(m - nt, 0, 1))
-  cm <- diag(m)
-  cm[1:nt, 1:nt] <- rho
-  diag(cm) <- 1
-  n_bh   <- sum(adjust_BH(rawp_g)          < 0.05)
-  n_cora <- sum(adjust_CORA(rawp_g, cm) < 0.05)
-  if (n_bh == 0) 0 else round((1 - n_cora / n_bh) * 100, 1)
-}, grid$rho, grid$n_true)
-
-# Plot
-cols_n <- c("50"  = "#d4e6f1",
-            "100" = "#85c1e9",
-            "200" = "#2e86c1",
-            "400" = "#1a5276")
-
-plot(NULL, xlim = c(0, 1), ylim = c(0, 60),
-     xlab = expression(rho ~ "(within-pathway correlation)"),
-     ylab = "DEG reduction vs BH (%)",
-     main = "CORA effect: correlation strength × number of DEGs")
-
-for (nt in c(50, 100, 200, 400)) {
-  sub <- grid[grid$n_true == nt, ]
-  lines(sub$rho, sub$reduction, col = cols_n[as.character(nt)],
-        lwd = 2, type = "b", pch = 16)
-}
-legend("topleft",
-       legend = paste0("n_true = ", c(50, 100, 200, 400)),
-       col    = cols_n,
-       lwd = 2, pch = 16, bty = "n")
-```
 
 **Practical implication**: CORA has the largest impact on RNA-seq datasets
 with many correlated DEGs. In the paper's benchmarks, CORA removed 17–23%
@@ -358,11 +317,11 @@ adj_bh_ex   <- adjust_BH(rawp_ex)
 adj_cora_ex <- adjust_CORA(rawp_ex, cm_ex)
 
 # Genes removed by CORA = in BH but not in CORA
-removed <- which(adj_bh_ex < 0.05 & adj_cora_ex >= 0.05)
-kept    <- which(adj_cora_ex < 0.05)
+removed <- which(adj_bh_ex <= 0.05 & adj_cora_ex > 0.05)
+kept    <- which(adj_cora_ex <= 0.05)
 
-cat("BH rejections:   ", sum(adj_bh_ex   < 0.05), "\n")
-cat("CORA rejections: ", sum(adj_cora_ex < 0.05), "\n")
+cat("BH rejections:   ", sum(adj_bh_ex   <= 0.05), "\n")
+cat("CORA rejections: ", sum(adj_cora_ex <= 0.05), "\n")
 cat("Removed by CORA: ", length(removed), "\n\n")
 
 cat("Median raw p-value — removed genes:", round(median(rawp_ex[removed]), 4), "\n")
